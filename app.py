@@ -62,15 +62,17 @@ with gr.Blocks(title="Prompt Reverse Engineer") as demo:
                 label="Generated Text", lines=12, interactive=False, buttons=["copy"]
             )
             gr.Markdown("Author: Larrain, G")
-            gr.Markdown("""              
+            
+            with gr.Accordion("References", open=False):
+                gr.Markdown("""
             @misc{qwen3technicalreport,
-                title={Qwen3 Technical Report}, 
+                title={Qwen3 Technical Report},
                 author={Qwen Team},
                 year={2025},
                 eprint={2505.09388},
                 archivePrefix={arXiv},
                 primaryClass={cs.CL},
-                url={https://arxiv.org/abs/2505.09388}, 
+                url={https://arxiv.org/abs/2505.09388},
             }
 
             @article{Qwen2.5-VL,
