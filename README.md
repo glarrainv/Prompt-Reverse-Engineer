@@ -34,11 +34,11 @@ Turn an image into a verified text-to-image prompt. A closed-loop pipeline extra
 [![License](https://img.shields.io/github/license/glarrainv/Prompt-Reverse-Engineer?style=for-the-badge)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/glarrainv/Prompt-Reverse-Engineer?style=for-the-badge)](https://github.com/glarrainv/Prompt-Reverse-Engineer/stargazers)
 [![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-blue?style=for-the-badge)](https://huggingface.co/spaces/glarr/Prompt-Reverse-Engineer)
+
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![Gradio](https://img.shields.io/badge/Gradio-5.x-orange?style=for-the-badge&logo=gradio)](https://gradio.app/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.13-red?style=for-the-badge&logo=pytorch)](https://pytorch.org/)
 [![Transformers](https://img.shields.io/badge/Transformers-5.22-yellow?style=for-the-badge&logo=huggingface)](https://huggingface.co/docs/transformers)
-[![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green?style=for-the-badge)](LICENSE)
 
 ---
 
