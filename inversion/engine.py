@@ -46,6 +46,7 @@ class Backends:
     rewrite: Callable[[Image.Image, Image.Image, str, list[str]], RewritePatch]
     render: Callable[[str, int, int, int], Image.Image]
     embed: Callable[[Image.Image], DinoEmbedding]
+    meta: dict = field(default_factory=dict)  # which models produced the run; copied into the report
 
 
 @dataclass
@@ -80,6 +81,7 @@ class IterationRecord:
 @dataclass
 class InversionRun:
     config: EngineConfig
+    models: dict = field(default_factory=dict)
     status: str = ""
     raw_graph: DSGSceneSchema | None = None
     graph: DSGSceneSchema | None = None
@@ -105,6 +107,7 @@ class InversionRun:
         best = self.best
         return {
             "config": asdict(self.config),
+            "models": self.models,
             "stop_reason": self.stop_reason,
             "best_prompt": self.best_prompt,
             "best_iteration": best.t if best else None,
@@ -149,7 +152,7 @@ def iter_inversion(og_image: Image.Image, backends: Backends,
     if cfg.max_iters < 1:
         raise ValueError("max_iters must be >= 1")
     og = og_image.convert("RGB")
-    run = InversionRun(config=cfg)
+    run = InversionRun(config=cfg, models=dict(backends.meta))
 
     # ---- Module 1: constrained DSG extraction
     run.status = "Module 1 · extracting constrained scene graph"

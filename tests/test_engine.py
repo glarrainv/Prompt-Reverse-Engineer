@@ -152,6 +152,45 @@ def test_apply_patch_rejects_injected_buzzwords():
     assert sum("unverified" in s["reason"] for s in res.skipped) == 2
 
 
+def test_choose_gpu_size():
+    from inversion.backends import choose_gpu_size
+    assert choose_gpu_size("auto", int(51.6e9)) == "xlarge"  # Qwen3-VL-8B + FLUX bf16 + DINOv2: OOM on 'large'
+    assert choose_gpu_size("auto", int(39.7e9)) == "large"  # with PROXY_FP8=1
+    assert choose_gpu_size("large", int(80e9)) == "large"  # explicit override wins
+    with pytest.raises(ValueError):
+        choose_gpu_size("huge", 0)
+
+
+def test_resident_bytes_counts_shared_weights_once():
+    from types import SimpleNamespace
+    from inversion.backends import Components
+    vlm = SimpleNamespace(model=torch.nn.Linear(10, 10))  # 110 fp32 params = 440 bytes
+    pipe = SimpleNamespace(components={"transformer": torch.nn.Linear(4, 4, dtype=torch.bfloat16), "tok": "x"})
+    comps = Components(vlm=vlm, scorer=vlm, renderer=SimpleNamespace(pipe=pipe),
+                       dino=SimpleNamespace(model=torch.nn.Embedding(2, 3)))
+    assert comps.resident_bytes() == 440 + 20 * 2 + 6 * 4
+
+
+def test_proxy_defaults_and_rejections():
+    from inversion.proxy import proxy_defaults
+    assert proxy_defaults("FluxPipeline") == (4, 0.0)  # FLUX.1-schnell
+    assert proxy_defaults("Flux2KleinPipeline", True) == (4, 1.0)  # FLUX.2-klein-4B (model_index: is_distilled true)
+    for distilled in (None, False):  # klein *base* checkpoints have no is_distilled key
+        with pytest.raises(ValueError, match="not step-distilled"):
+            proxy_defaults("Flux2KleinPipeline", distilled)
+    with pytest.raises(ValueError, match="supported"):
+        proxy_defaults("StableDiffusionXLPipeline")
+
+
+def test_run_report_records_the_models_used():
+    world = StubWorld()
+    backends = world.backends()
+    backends.meta = {"proxy_model": "black-forest-labs/FLUX.2-klein-4B", "proxy_steps": 4, "proxy_guidance_scale": 1.0}
+    report = invert_image_to_verified_prompt(world.og, backends, EngineConfig(max_iters=3)).to_dict()
+    assert report["models"] == backends.meta
+    assert invert_image_to_verified_prompt(world.og, world.backends(), EngineConfig(max_iters=1)).to_dict()["models"] == {}
+
+
 def test_extract_json_handles_fences_and_think():
     raw = "<think>hmm</think>```json\n{\"a\": {\"b\": 1}}\n```"
     assert json.loads(extract_json(raw)) == {"a": {"b": 1}}

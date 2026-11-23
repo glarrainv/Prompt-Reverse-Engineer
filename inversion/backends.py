@@ -47,8 +47,12 @@ class BackendSettings:
         default_factory=lambda: _env("SCORER_API_KEY", _env("OPENAI_API_KEY")))
 
     proxy_backend: str = field(default_factory=lambda: _env("PROXY_BACKEND", "flux"))
-    proxy_model_id: str = field(default_factory=lambda: _env("PROXY_MODEL_ID", "black-forest-labs/FLUX.1-schnell"))
+    proxy_model_id: str = field(default_factory=lambda: _env("PROXY_MODEL_ID", "black-forest-labs/FLUX.2-klein-4B"))
     proxy_cpu_offload: bool = field(default_factory=lambda: _env("PROXY_CPU_OFFLOAD", "0") == "1")
+    proxy_fp8: bool = field(default_factory=lambda: _env("PROXY_FP8", "0") == "1")
+    # ZeroGPU slice: "auto" picks "xlarge" when the resident weights would not leave room for activations
+    # in a "large" slice (half an RTX PRO 6000, ~50.9 GB). Override with "large" or "xlarge".
+    zerogpu_size: str = field(default_factory=lambda: _env("ZEROGPU_SIZE", "auto").lower())
     fal_endpoint: str = field(default_factory=lambda: _env("FAL_ENDPOINT", "fal-ai/flux/schnell"))
 
     vqa_mode: str = field(default_factory=lambda: _env("VQA_MODE", "normalized"))
@@ -64,6 +68,27 @@ class Components:
     scorer: VLMBase
     renderer: Callable[[str, int, int, int], Image.Image]
     dino: DinoEmbedder
+    info: dict = field(default_factory=dict)  # model ids / proxy settings, written into every run report
+
+    def resident_bytes(self) -> int:
+        """Bytes of model weights held by the local components (what ZeroGPU packs and moves per call)."""
+        modules, seen = [], set()
+        for obj in (self.vlm, self.scorer, self.renderer, self.dino):
+            candidates = [getattr(obj, "model", None)]
+            pipe = getattr(obj, "pipe", None)
+            if pipe is not None:
+                candidates += list(getattr(pipe, "components", {}).values())
+            for m in candidates:
+                if m is not None and hasattr(m, "parameters") and id(m) not in seen:
+                    seen.add(id(m))
+                    modules.append(m)
+        total, counted = 0, set()
+        for m in modules:
+            for t in list(m.parameters()) + list(m.buffers()):
+                if id(t) not in counted:
+                    counted.add(id(t))
+                    total += t.numel() * t.element_size()
+        return total
 
     def backends(self) -> Backends:
         return Backends(
@@ -72,7 +97,22 @@ class Components:
             rewrite=self.vlm.rewrite,
             render=self.renderer,
             embed=self.dino.embed,
+            meta=self.info,
         )
+
+
+# A ZeroGPU "large" slice is half an RTX PRO 6000 (50.87 GB observed). Every @spaces.GPU call first copies
+# all resident weights onto it, so they must leave room for activations (FLUX at 1024 px, Qwen3-VL decoding).
+LARGE_SLICE_WEIGHT_BUDGET = 42e9
+
+
+def choose_gpu_size(setting: str, resident_bytes: int) -> str:
+    """ZeroGPU size for every @spaces.GPU call: an explicit 'large'/'xlarge', or 'auto' by weight size."""
+    if setting in ("large", "xlarge"):
+        return setting
+    if setting != "auto":
+        raise ValueError(f"ZEROGPU_SIZE must be 'auto', 'large' or 'xlarge', got {setting!r}")
+    return "xlarge" if resident_bytes > LARGE_SLICE_WEIGHT_BUDGET else "large"
 
 
 def load_components(settings: BackendSettings | None = None) -> Components:
@@ -98,8 +138,8 @@ def load_components(settings: BackendSettings | None = None) -> Components:
         raise ValueError(f"SCORER_BACKEND must be 'local' or 'api', got {scorer_backend!r}")
 
     if s.proxy_backend == "flux":
-        from .proxy import FluxSchnellRenderer
-        renderer = FluxSchnellRenderer(s.proxy_model_id, cpu_offload=s.proxy_cpu_offload)
+        from .proxy import FluxRenderer
+        renderer = FluxRenderer(s.proxy_model_id, cpu_offload=s.proxy_cpu_offload, fp8=s.proxy_fp8)
     elif s.proxy_backend == "fal":
         from .proxy import FalRenderer
         renderer = FalRenderer(s.fal_endpoint)
@@ -107,4 +147,11 @@ def load_components(settings: BackendSettings | None = None) -> Components:
         raise ValueError(f"PROXY_BACKEND must be 'flux' or 'fal', got {s.proxy_backend!r}")
 
     dino = DinoEmbedder(s.dino_model_id, device=s.dino_device)
-    return Components(vlm=vlm, scorer=scorer, renderer=renderer, dino=dino)
+    info = {
+        "vlm_model": s.vlm_model_id if s.vlm_backend == "local" else s.vlm_api_model,
+        "scorer": "local (shares the VLM)" if scorer is vlm else s.scorer_api_model,
+        "vqa_mode": s.vqa_mode,
+        "dino_model": s.dino_model_id,
+        **getattr(renderer, "info", {}),
+    }
+    return Components(vlm=vlm, scorer=scorer, renderer=renderer, dino=dino, info=info)
