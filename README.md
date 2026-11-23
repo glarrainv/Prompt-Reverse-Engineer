@@ -24,7 +24,7 @@ tags:
   - dino
   - vqa
   - zero-gpu
-short_description: Turn any image into a verified text-to-image prompt. Closed-loop DSG + VQA + DINO pipeline.
+short_description: Turn any image into a verified text-to-image prompt.
 ---
 
 # Prompt Reverse Engineer
