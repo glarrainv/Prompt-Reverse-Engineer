@@ -2,3 +2,13 @@ spaces
 torch==2.13.0
 torchvision==0.28.0
 transformers==5.22.1
+diffusers
+accelerate
+sentencepiece
+protobuf
+pydantic>=2.6
+numpy
+pillow
+# Optional API pathway (VLM_BACKEND=api / SCORER_BACKEND=api / PROXY_BACKEND=fal)
+openai
+fal-client

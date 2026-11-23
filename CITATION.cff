@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Larrain Varas
+    given-names: Gaspar Dario
+title: "Grounded Prompt-to-Image VLM Space"
+abstract: "The software implements a 4-layer process (VLM, DSG, Flux, VQA) to transform an image into a grounded prompt"
+version: 2.0.1
+date-released: 2026-11-17
+identifiers:
+  - description: The following is the Hugging Face space associated with this software
+    type: url
+    value: "https://huggingface.co/spaces/glarr/Prompt-Reverse-Engineer"
+license: Apache-2.0
+repository-code: "https://github.com/glarrainv/Prompt-Reverse-Engineer"
